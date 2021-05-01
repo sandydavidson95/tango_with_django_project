@@ -8,6 +8,7 @@ from django.urls import reverse
 from rango.forms import UserForm, UserProfileForm
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from datetime import datetime
 
 
 def index(request):
@@ -18,11 +19,18 @@ def index(request):
     context_dict['boldmessage'] = 'Crunchy, creamy, cookie, candy, cupcake!'
     context_dict['categories'] = category_list
     context_dict['pages'] = page_list
-    return render(request, 'rango/index.html', context=context_dict)
+
+    visitor_cookie_handler(request)
+
+    response = render(request, 'rango/index.html', context=context_dict)
+    return response
     #return HttpResponse("Rango says hey there partner! <a href='/rango/about/'>About</a>")
 
 def about(request):
-    context_dict = {'boldmessage': 'Check, your, e-mail!'}
+    context_dict = {}
+    visitor_cookie_handler(request)
+    context_dict['visits'] = request.session['visits']
+
     return render(request, 'rango/about.html', context=context_dict)
     #return HttpResponse("Rango says here is the about page. <a href='/rango/'>Index</a>")
 
@@ -95,7 +103,6 @@ def register(request):
 
         if user_form.is_valid() and profile_form.is_valid():
             user = user_form.save()
-
             user.set_password(user.password)
             user.save()
 
@@ -106,7 +113,6 @@ def register(request):
                 profile.picture = request.FILES['picture']
 
             profile.save()
-
             registered = True
         else:
             print(user_form.errors, profile_form.errors)
@@ -148,3 +154,22 @@ def restricted(request):
 def user_logout(request):
     logout(request)
     return redirect(reverse('rango:index'))
+
+def get_server_side_cookie(request, cookie, default_val=None):
+    val = request.session.get(cookie)
+    if not val:
+        val = default_val
+    return val
+
+def visitor_cookie_handler(request):
+    visits = int(get_server_side_cookie(request, 'visits', '1'))
+    last_visit_cookie = get_server_side_cookie(request,'last_visit',str(datetime.now()))
+    last_visit_time = datetime.strptime(last_visit_cookie[:-7],'%Y-%m-%d %H:%M:%S')
+
+    if (datetime.now() - last_visit_time).days > 0:
+        visits = visits + 1
+        request.session['last_visit'] = str(datetime.now())
+    else:
+        request.session['last_visit'] = last_visit_cookie
+
+    request.session['visits'] = visits
